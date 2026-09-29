@@ -85,6 +85,7 @@
     msg: sv('<path d="M4 5h16v11H9l-5 4z"/>'),
     camera: sv('<rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 11 5-3v8l-5-3"/>'),
     refresh: sv('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
+    car: sv('<path d="M5 16h14v-4l-2-5H7l-2 5z"/><path d="M3 12h18"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/>'),
     phone: sv('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>')
   };
   const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2" fill="#fff"/><rect x="13" y="3" width="8" height="8" rx="2" fill="#fff" opacity=".55"/><rect x="3" y="13" width="8" height="8" rx="2" fill="#fff" opacity=".55"/><rect x="13" y="13" width="8" height="8" rx="2" fill="#E8772E"/></svg>';
@@ -204,12 +205,17 @@
   }
   const go = (h) => { location.hash = h; };
   let dirty = false;
+  // Puntos de extensión para módulos que se suman (por ejemplo, Viajes)
+  const EXT = { routes: [], before: [], after: [], adminTabs: [], homeCards: [], sideRoles: [], perfilLinks: [], ordersTabs: [], navBadges: {} };
 
   function render(isNav) {
     const r = parse();
     const [a, b, c] = r.parts;
     let view = "", mode = "vecino", tab = null;
-    if (a === "comercio") { mode = "comercio"; view = viewComercio(b || "hoy"); }
+    let ext = null;
+    for (const f of EXT.routes) { ext = f(r); if (ext) break; }
+    if (ext) { view = ext.view; mode = ext.mode || "vecino"; tab = ext.tab || null; }
+    else if (a === "comercio") { mode = "comercio"; view = viewComercio(b || "hoy"); }
     else if (a === "admin") { mode = "admin"; view = viewAdmin(b || "metricas"); }
     else {
       switch (a) {
@@ -218,7 +224,7 @@
         case "local": tab = "inicio"; view = viewLocal(b); break;
         case "carrito": view = viewCarrito(); break;
         case "checkout": view = viewCheckout(); break;
-        case "pedidos": tab = "pedidos"; view = b ? viewPedido(Number(b)) : viewPedidos(); break;
+        case "pedidos": tab = "pedidos"; view = b ? viewPedido(Number(b)) : viewPedidos(r.q); break;
         case "seguridad":
           if (b === "camara") view = viewCamara(c);
           else if (b === "alertas" && c === "nueva") view = viewNuevaAlerta(r.q);
@@ -228,12 +234,15 @@
         default: tab = "inicio"; view = viewHome();
       }
     }
-    phone.classList.toggle("wide", mode !== "vecino");
+    phone.classList.toggle("wide", mode === "comercio" || mode === "admin");
     const y = isNav ? 0 : screen.scrollTop;
+    EXT.before.forEach((f) => f());
     screen.innerHTML = view;
-    nav.innerHTML = tab ? bottomNav(tab) : "";
-    nav.hidden = !tab;
+    nav.innerHTML = ext && ext.nav ? ext.nav : tab ? bottomNav(tab) : "";
+    nav.className = "bottomnav" + (ext && ext.navClass ? " " + ext.navClass : "");
+    nav.hidden = !nav.innerHTML;
     screen.scrollTop = y;
+    EXT.after.forEach((f) => f(r, isNav));
     if (isNav) closeSheet();
     renderSide(mode);
     dirty = false;
@@ -245,17 +254,19 @@
   function bottomNav(tab) {
     const n = activeOrders().length;
     const it = (id, href, icon, label, badge) => `<a href="${href}" class="${tab === id ? "on" : ""}" ${tab === id ? 'aria-current="page"' : ""}>${icon}<span>${label}</span>${badge ? `<span class="badge">${badge}</span>` : ""}</a>`;
-    return it("inicio", "#/", I.home, "Inicio") + it("pedidos", "#/pedidos", I.orders, "Pedidos", n) + it("seguridad", "#/seguridad", I.shield, "Seguridad") + it("perfil", "#/perfil", I.user, "Perfil");
+    const vb = EXT.navBadges.viajes ? EXT.navBadges.viajes() : 0;
+    return it("inicio", "#/", I.home, "Inicio") + it("pedidos", "#/pedidos", I.orders, "Pedidos", n) + it("viajes", "#/viajes", I.car, "Viajes", vb) + it("seguridad", "#/seguridad", I.shield, "Seguridad") + it("perfil", "#/perfil", I.user, "Perfil");
   }
 
   function renderSide(mode) {
     side.innerHTML = `
       <div class="logo-big"><div class="mark" style="width:48px;height:48px;border-radius:14px">${LOGO}</div>Cuadra</div>
-      <p>Delivery de barrio para el centro de Berazategui. Es una <b>maqueta navegable</b>: los comercios y los datos son de ejemplo, y no se cobra nada.</p>
+      <p>Delivery y viajes de barrio para el centro de Berazategui. Es una <b>maqueta navegable</b>: los comercios, choferes y datos son de ejemplo, y no se cobra nada.</p>
       <div class="roles" role="navigation" aria-label="Elegí qué ver">
         <a class="role ${mode === "vecino" ? "on" : ""}" href="#/"><span style="font-size:24px">🏠</span><span>App del vecino<small>Pedir, seguir el pedido, seguridad</small></span></a>
         <a class="role ${mode === "comercio" ? "on" : ""}" href="#/comercio"><span style="font-size:24px">🏪</span><span>Panel del comercio<small>Recibir y preparar pedidos</small></span></a>
-        <a class="role ${mode === "admin" ? "on" : ""}" href="#/admin"><span style="font-size:24px">📊</span><span>Panel de administración<small>Comercios, zonas y comisión</small></span></a>
+        <a class="role ${mode === "admin" ? "on" : ""}" href="#/admin"><span style="font-size:24px">📊</span><span>Panel de administración<small>Comercios, choferes, tarifas y comisión</small></span></a>
+        ${EXT.sideRoles.map((x) => `<a class="role ${mode === x.mode ? "on" : ""}" href="${x.href}"><span style="font-size:24px">${x.emoji}</span><span>${x.label}<small>${x.sub}</small></span></a>`).join("")}
       </div>
       <p class="fine">Probá esto: hacé un pedido en la app y después aceptalo desde el panel del comercio. Si nadie lo toca, avanza solo cada unos segundos.</p>
       <p class="fine">En el celu: abrí este mismo link y tocá “Agregar a pantalla de inicio” para instalarla.</p>
@@ -323,6 +334,7 @@
         <div class="section-head"><h2 class="h2">Categorías</h2></div>
         <div class="cats">${D.categorias.map((c) => `<a class="cat" href="#/buscar?cat=${c.id}" style="background:${c.color}"><span class="emo" aria-hidden="true">${c.emoji}</span>${c.nombre}</a>`).join("")}</div>
       </section>
+      ${EXT.homeCards.map((f) => f()).join("")}
       <div class="banner">
         <h3>Comprale al barrio, sin salir de casa</h3>
         <p>La comisión es baja y el envío lo hacen vecinos de la zona. La plata queda en la cuadra.</p>
@@ -650,7 +662,13 @@
     const cls = { recibido: "pill-warn", preparacion: "pill-new", camino: "pill-open", entregado: "pill-closed", rechazado: "pill-red", cancelado: "pill-red" }[o.status];
     return `<span class="pill ${cls}">${STEP_INFO[o.status].corto}</span>`;
   }
-  function viewPedidos() {
+  function viewPedidos(q) {
+    const tabSel = (q && q.get("tab")) || "delivery";
+    const tabsHtml = EXT.ordersTabs.length ? `<div class="chips" style="margin-top:12px" role="tablist">
+        <a class="chip ${tabSel === "delivery" ? "on" : ""}" href="#/pedidos" role="tab" aria-selected="${tabSel === "delivery"}">🛍️ Delivery</a>
+        ${EXT.ordersTabs.map((t) => `<a class="chip ${tabSel === t.id ? "on" : ""}" href="#/pedidos?tab=${t.id}" role="tab" aria-selected="${tabSel === t.id}">${t.label}</a>`).join("")}</div>` : "";
+    const extTab = EXT.ordersTabs.find((t) => t.id === tabSel);
+    if (extTab) return `<header class="home-head"><h1 class="h1">Tus pedidos</h1></header>${tabsHtml}${extTab.render()}`;
     const mine = S.orders.filter((o) => o.mine).sort((a, b) => b.created - a.created);
     const act = mine.filter((o) => AUTO[o.status]);
     const past = mine.filter((o) => !AUTO[o.status]);
@@ -667,7 +685,7 @@
           ${AUTO[o.status] ? `<a class="btn btn-sm btn-primary" href="#/pedidos/${o.id}">Seguir pedido</a>` : `<a class="btn btn-sm btn-outline" href="#/pedidos/${o.id}">Ver detalle</a><button class="btn btn-sm btn-soft" data-act="repeat" data-id="${o.id}">${I.refresh} Repetir</button>`}
         </div></article>`;
     };
-    return `<header class="home-head"><h1 class="h1">Tus pedidos</h1></header>
+    return `<header class="home-head"><h1 class="h1">Tus pedidos</h1></header>${tabsHtml}
       ${act.length ? `<section class="section" style="margin-top:12px"><div class="section-head"><h2 class="h3">En curso</h2></div><div class="pad stack">${act.map(card).join("")}</div></section>` : ""}
       <section class="section" style="margin-top:${act.length ? 24 : 12}px"><div class="section-head"><h2 class="h3">Anteriores</h2></div>
         <div class="pad stack">${past.length ? past.map(card).join("") : `<p class="muted">Todavía no hiciste pedidos.</p>`}</div></section>
@@ -718,7 +736,8 @@
         <h2 class="h3" style="margin-top:14px">Probar la maqueta</h2>
         <div class="list">
           <a class="li" href="#/comercio"><span style="font-size:22px">🏪</span><div class="grow"><b>Panel del comercio</b><div class="small muted">Recibir, aceptar y preparar pedidos</div></div>${I.chevR}</a>
-          <a class="li" href="#/admin"><span style="font-size:22px">📊</span><div class="grow"><b>Panel de administración</b><div class="small muted">Comercios, zonas, comisión y métricas</div></div>${I.chevR}</a>
+          <a class="li" href="#/admin"><span style="font-size:22px">📊</span><div class="grow"><b>Panel de administración</b><div class="small muted">Comercios, choferes, tarifas y métricas</div></div>${I.chevR}</a>
+          ${EXT.perfilLinks.map((x) => `<a class="li" href="${x.href}"><span style="font-size:22px">${x.emoji}</span><div class="grow"><b>${x.label}</b><div class="small muted">${x.sub}</div></div>${I.chevR}</a>`).join("")}
           <button class="li" data-act="reset"><span style="font-size:22px">↺</span><div class="grow"><b>Reiniciar la demo</b><div class="small muted">Vuelve todo a los datos de ejemplo</div></div></button>
         </div>
         <p class="tiny muted center" style="margin-top:10px;line-height:1.5">Cuadra · maqueta v0.1 · datos de ejemplo, sin pagos reales</p>
@@ -979,20 +998,22 @@
     }
     return out;
   }
-  function barChart(series) {
-    const W = 640, H = 230, pl = 34, pr = 6, pt = 14, pb = 30;
-    const max = Math.ceil(Math.max(...series.map((x) => x.v)) / 20) * 20;
+  function barChart(series, opts) {
+    opts = opts || {};
+    const tipOf = opts.tip || ((v) => `${v} pedidos`), axisOf = opts.axis || ((v) => v), step = opts.step || 20;
+    const W = 640, H = 230, pl = opts.pl || 34, pr = 6, pt = 14, pb = 30;
+    const max = Math.max(step, Math.ceil(Math.max(...series.map((x) => x.v)) / step) * step);
     const bw = (W - pl - pr) / series.length, ih = H - pt - pb;
     let g = "";
-    [0, max / 2, max].forEach((t) => { const y = pt + ih * (1 - t / max); g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text class="axis" x="${pl - 6}" y="${y + 4}" text-anchor="end">${t}</text>`; });
+    [0, max / 2, max].forEach((t) => { const y = pt + ih * (1 - t / max); g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text class="axis" x="${pl - 6}" y="${y + 4}" text-anchor="end">${axisOf(t)}</text>`; });
     series.forEach((p, i) => {
       const x = pl + i * bw + 1, w = bw - 2, y = pt + ih * (1 - p.v / max), yb = pt + ih, r = Math.min(4, w / 2, yb - y);
       const dl = `${DIAS_C[p.d.getDay()]} ${p.d.getDate()}/${p.d.getMonth() + 1}`;
       g += `<path class="bar" data-i="${i}" d="M${x},${yb} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${yb} Z"/>`;
-      g += `<rect x="${pl + i * bw}" y="${pt}" width="${bw}" height="${ih}" fill="transparent" data-tip="${dl}: ${p.v} pedidos${i === series.length - 1 ? " (hasta ahora)" : ""}" data-i="${i}"/>`;
+      g += `<rect x="${pl + i * bw}" y="${pt}" width="${bw}" height="${ih}" fill="transparent" data-tip="${dl}: ${tipOf(p.v)}${i === series.length - 1 ? " (hasta ahora)" : ""}" data-i="${i}"/>`;
       if (i % 2 === series.length % 2 || i === series.length - 1) g += `<text class="axis" x="${x + w / 2}" y="${H - 10}" text-anchor="middle">${i === series.length - 1 ? "Hoy" : dl}</text>`;
     });
-    return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pedidos por día en los últimos ${series.length} días">${g}</svg><div class="tip hidden"></div></div>`;
+    return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.label || `Pedidos por día en los últimos ${series.length} días`}">${g}</svg><div class="tip hidden"></div></div>`;
   }
   function adminStats() {
     const s30 = dailySeries(30);
@@ -1001,9 +1022,11 @@
     return { s30, pedidos, gmv, com: Math.round(gmv * S.config.comision / 100), ticket: 15800 };
   }
   function viewAdmin(tab) {
-    const tabs = [["metricas", "Métricas"], ["comercios", "Comercios"], ["zonas", "Zonas"], ["config", "Comisión y envío"]];
+    const tabs = [["metricas", "Métricas"], ["comercios", "Comercios"], ["zonas", "Zonas"], ["config", "Comisión y envío"]].concat(EXT.adminTabs.map((t) => [t.id, t.label]));
+    const extTab = EXT.adminTabs.find((t) => t.id === tab);
     let body;
-    if (tab === "comercios") body = adminShops();
+    if (extTab) body = extTab.render();
+    else if (tab === "comercios") body = adminShops();
     else if (tab === "zonas") body = adminZones();
     else if (tab === "config") body = adminConfig();
     else { tab = "metricas"; body = adminMetrics(); }
@@ -1500,7 +1523,13 @@
     else liveUpdate();
   }, 1000);
 
-  render(true);
+  window.Cuadra = {
+    get S() { return S; }, save, render, go, parse, toast, openSheet, closeSheet, confirmSheet,
+    I, LOGO, esc, money, hhmm, pad2, fmtDate, ago, first, initials, hash, isToday, topbar, empty, currentAddr, panelShell, barChart,
+    ACT, FORMS, BIND, EXT
+  };
+  // El primer render espera a que carguen los módulos que se enchufan (viajes.js)
+  document.addEventListener("DOMContentLoaded", () => render(true));
 
   if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
