@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Cuadra · delivery del barrio</title>
-  <meta name="description" content="Maqueta navegable de Cuadra, una app de delivery barrial para Berazategui: pedidos a comercios del barrio, seguimiento y seguridad vecinal.">
+  <title>Cuadra · delivery y viajes del barrio</title>
+  <meta name="description" content="Maqueta navegable de Cuadra, una app de delivery barrial para Berazategui: pedidos a comercios del barrio, remises con choferes habilitados y seguridad vecinal.">
   <meta name="theme-color" content="#1E6B52">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -17,7 +17,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="viajes.css">
 </head>
 <body>
   <div id="stage">
@@ -28,7 +30,10 @@
     </div>
   </div>
   <noscript>Cuadra necesita JavaScript para funcionar.</noscript>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="data.js"></script>
+  <script src="viajes-data.js"></script>
   <script src="app.js"></script>
+  <script src="viajes.js"></script>
 </body>
 </html>
