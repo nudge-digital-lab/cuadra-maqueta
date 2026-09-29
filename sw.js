@@ -1,6 +1,9 @@
 // Service worker de la maqueta: guarda la app para que abra sin conexión.
-const CACHE = "cuadra-v1";
-const CORE = ["./", "index.html", "styles.css", "app.js", "data.js", "manifest.json", "icons/icon.svg", "icons/icon-192.png"];
+const CACHE = "cuadra-v2";
+const CORE = [
+  "./", "index.html", "styles.css", "app.js", "data.js", "manifest.json", "icons/icon.svg", "icons/icon-192.png",
+  "viajes.css", "viajes-data.js", "viajes.js", "viajes-seguridad.js", "viajes-chofer.js", "viajes-admin.js"
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
